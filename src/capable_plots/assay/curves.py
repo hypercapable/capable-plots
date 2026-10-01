@@ -84,6 +84,9 @@ class FitResult:
     Emax_status: str | None           # supported | plateau unconfirmed | NE
     flat_flag: bool
     params: tuple[float, float, float, float]
+    #: 1-sigma standard errors on (asym_lo_dose, asym_hi_dose, log10EC50, Hill).
+    #: Asymptote errors are in raw response units; log10EC50 is in log10 nM.
+    param_se: tuple[float, float, float, float] = (float("nan"),) * 4
     direction: str = ""
     fitter_version: str = field(default="capable-standard-v1.1")
 
@@ -132,7 +135,7 @@ def _failed_result(direction, n_obs, reason) -> FitResult:
         asym_lo_dose=nan, asym_hi_dose=nan, R2=nan, n_obs=n_obs, residual_df=0,
         t_critical=nan, observed_drop_pct=nan, status="fit failed",
         gates_failed=[reason], Emax_pct=None, Emax_status=None, flat_flag=True,
-        params=(nan, nan, nan, nan), direction=direction,
+        params=(nan, nan, nan, nan), param_se=(nan,) * 4, direction=direction,
     )
 
 
@@ -261,11 +264,19 @@ def fit_4pl(
     tcrit = float(_tdist.ppf(0.975, df))
     finite_cov = bool(np.isfinite(pcov).all())
     se = float(np.sqrt(max(0.0, pcov[2, 2]))) if finite_cov else np.inf
+    with np.errstate(invalid="ignore"):
+        se_all = np.sqrt(np.clip(np.diag(pcov), 0, None))
+    # asymptote errors came out of the median-scaled fit; return them in raw units
+    param_se = (float(se_all[0] * scale), float(se_all[1] * scale),
+                float(se_all[2]), float(se_all[3]))
     delta = tcrit * se
     with np.errstate(over="ignore"):
         ec_lo = 10.0 ** np.clip(logEC50 - delta, -300, 300)
         ec_hi = 10.0 ** np.clip(logEC50 + delta, -300, 300)
-    ci_fold = float(ec_hi / ec_lo) if ec_lo > 0 and np.isfinite(ec_hi) else np.inf
+    with np.errstate(over="ignore", divide="ignore"):
+        ci_fold = float(ec_hi / ec_lo) if ec_lo > 0 and np.isfinite(ec_hi) else np.inf
+    if not np.isfinite(ci_fold):
+        ci_fold = np.inf
 
     baseline = abs(ns_mean) if (ns_mean not in (None, 0)) else abs(float(np.median(y)))
     baseline = max(baseline, 1e-12)
@@ -336,5 +347,6 @@ def fit_4pl(
         Emax_status=emax_status,
         flat_flag=flat,
         params=(asym_lo, asym_hi, logEC50, hill),
+        param_se=param_se,
         direction=direction,
     )
