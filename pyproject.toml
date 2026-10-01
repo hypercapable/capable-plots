@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "capable-plots"
-version = "0.2.0"
+version = "0.3.0"
 description = "Capable Labs house style for matplotlib/seaborn/plotly figures, plus shared assay curve math."
 readme = "README.md"
 requires-python = ">=3.10"
