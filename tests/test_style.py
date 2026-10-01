@@ -106,3 +106,75 @@ def test_svg_export_has_editable_text(tmp_path):
     # svg.fonttype='none' → the literal title text appears, not vectorized paths.
     assert "Editable" in content
     plt.close(fig)
+
+
+# ── smart_legend ──────────────────────────────────────────────────────────────
+
+def test_legend_layout_scales_columns_with_entries():
+    import capable_plots as cp
+    assert cp.legend_layout(1)["ncol"] == 1
+    assert cp.legend_layout(8)["ncol"] == 1, "8 fits one column"
+    assert cp.legend_layout(9)["ncol"] == 2, "9 must wrap"
+    assert cp.legend_layout(16)["ncol"] == 2
+    assert cp.legend_layout(24)["ncol"] == 3
+    assert cp.legend_layout(100)["ncol"] == 3, "capped, never a wall of columns"
+
+
+def test_legend_layout_only_shrinks_when_forced():
+    import capable_plots as cp
+    base = cp.legend_layout(4)["fontsize"]
+    assert cp.legend_layout(8)["fontsize"] == base, "a short legend stays readable"
+    assert cp.legend_layout(9)["fontsize"] < base
+    assert cp.legend_layout(24)["fontsize"] < cp.legend_layout(9)["fontsize"]
+
+
+def test_smart_legend_wraps_a_crowded_axis():
+    import matplotlib.pyplot as plt
+
+    import capable_plots as cp
+    fig, ax = plt.subplots()
+    for i in range(16):
+        ax.plot([1, 2], [i, i], label=f"NPSv29.1.{i}")
+    leg = cp.smart_legend(ax)
+    assert leg._ncols == 2
+    assert len(leg.get_texts()) == 16
+    assert not leg.get_frame_on(), "house style is frameless"
+    plt.close(fig)
+
+
+def test_smart_legend_caps_entries_with_overflow_note():
+    import matplotlib.pyplot as plt
+
+    import capable_plots as cp
+    fig, ax = plt.subplots()
+    for i in range(20):
+        ax.plot([1, 2], [i, i], label=f"c{i}")
+    leg = cp.smart_legend(ax, max_entries=6)
+    texts = [t.get_text() for t in leg.get_texts()]
+    assert len(texts) == 7
+    assert texts[-1] == "+14 more"
+    plt.close(fig)
+
+
+def test_smart_legend_outside_anchors_right():
+    import matplotlib.pyplot as plt
+
+    import capable_plots as cp
+    fig, ax = plt.subplots()
+    for i in range(5):
+        ax.plot([1, 2], [i, i], label=f"c{i}")
+    leg = cp.smart_legend(ax, outside=True)
+    assert leg.get_bbox_to_anchor() is not None
+    plt.close(fig)
+
+
+def test_smart_legend_kwargs_win():
+    import matplotlib.pyplot as plt
+
+    import capable_plots as cp
+    fig, ax = plt.subplots()
+    for i in range(16):
+        ax.plot([1, 2], [i, i], label=f"c{i}")
+    leg = cp.smart_legend(ax, ncol=1, frameon=True)
+    assert leg._ncols == 1 and leg.get_frame_on()
+    plt.close(fig)
