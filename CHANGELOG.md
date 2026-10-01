@@ -3,6 +3,23 @@
 All notable changes to `capable-plots` are documented here. This project follows
 [semantic versioning](https://semver.org/).
 
+## [0.4.0] — unreleased
+
+### Added
+- **`smart_legend(ax, ...)` and `legend_layout(n)`** — legend layout that scales with
+  how many series an axis carries. One column up to 8 entries, then wraps to 2 and 3
+  columns and steps the font down, tightening handle/label spacing as it grows. A
+  16-compound SAR arm in a default one-column legend runs straight up through the
+  curves it is labelling; this is the fix, lifted out of a per-experiment script and
+  made reusable.
+  - `max_entries=N` caps the key and replaces the overflow with a single `"+N more"`
+    line, for panels with more series than anyone will read off a legend.
+  - `outside=True` anchors the legend to the right of the axes.
+  - Frameless by default, per house style; any `legend()` kwarg passed through wins
+    over the computed layout.
+  - `legend_layout(n)` returns the kwargs without drawing, for callers building their
+    own legend or sizing a figure before laying it out.
+
 ## [0.3.0] — unreleased
 
 Implements **Capable curve-fitting standard v1.1**. `capable_plots.assay.fit_4pl` is

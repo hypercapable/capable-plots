@@ -22,7 +22,7 @@ Quick start (plotly)::
 from __future__ import annotations
 
 from . import assay
-from .axes import style_axis
+from .axes import legend_layout, smart_legend, style_axis
 from .color import (
     CAPABLE,
     CAPABLE_PAIR,
@@ -68,10 +68,12 @@ __all__ = [
     "colors",
     "figsize",
     "house",
+    "legend_layout",
     "plotly_figsize",
     "plotly_house",
     "plotly_house_ctx",
     "plotly_save",
     "save",
+    "smart_legend",
     "style_axis",
 ]
