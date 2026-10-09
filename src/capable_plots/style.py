@@ -155,6 +155,11 @@ house = Theme(
         **_EDITABLE,
         "font.family": "serif",
         "font.serif": ["Times New Roman", "Palatino", "DejaVu Serif"],
+        # Times New Roman has no superscript-2 or subscript-5/0 glyph, so EC50 and R2
+        # have to be written as mathtext. STIX is the Times-metric math face; without
+        # this, mathtext silently falls back to DejaVu Sans and the sub/superscripts
+        # render in a different typeface from the rest of the label.
+        "mathtext.fontset": "stix",
         "font.size": 12,
         "axes.titlesize": 14,
         "axes.labelsize": 12,
