@@ -135,17 +135,22 @@ def _place(ax, x, y, fit, n_lines: int):
     collides whenever the curve turns early. Scores each candidate by how many
     plotted points and fitted-curve samples fall inside the text's footprint and
     takes the first clear one, falling back to the least-crowded.
+
+    Points are mapped through the axes' **actual** limits, not the curve's own
+    range. A panel whose y-limits are fixed before drawing — a ``sharey`` grid, or
+    headroom left for stats lines — puts a flat curve in one band of the axis, and
+    scoring it as if it filled the axis would call every corner crowded. Set limits
+    *before* calling :func:`dose_response` for the block to see them.
     """
     xs = np.log10(x[x > 0])
     curve_x = np.logspace(xs.min(), xs.max(), 60)
     px = np.concatenate([xs, np.log10(curve_x)])
     py = np.concatenate([y, four_pl(curve_x, *fit.params)])
-    span_x, span_y = np.ptp(px), np.ptp(py)
-    if span_x <= 0 or span_y <= 0 or not np.isfinite(py).all():
+    (x0, x1), (y0, y1) = ax.get_xlim(), ax.get_ylim()
+    if not np.isfinite(py).all() or x0 <= 0 or x1 <= x0 or y1 <= y0:
         return _ANCHORS[0]
-    # matplotlib's default 5% margins, so data spans 0.05-0.95 of the axis
-    fx = 0.05 + 0.90 * (px - px.min()) / span_x
-    fy = 0.05 + 0.90 * (py - py.min()) / span_y
+    fx = (px - np.log10(x0)) / (np.log10(x1) - np.log10(x0))
+    fy = (py - y0) / (y1 - y0)
 
     h = _BLOCK_H * n_lines / 2
     counts = []

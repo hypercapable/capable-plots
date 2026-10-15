@@ -35,6 +35,11 @@ All notable changes to `capable-plots` are documented here. This project follows
   evidence for the call. Live fits are unaffected.
 
 ### Fixed
+- **The corner block no longer lands on a flat curve in a `sharey` grid.** Placement
+  scored corners as if the curve filled its own axis; on a panel whose y-limits were
+  fixed first, a flat (often NE) curve sits in one band, every corner read as crowded,
+  and the block fell back onto a data point. It now maps points through the axes'
+  real limits. Set limits before calling `dose_response` for the block to see them.
 - `capable_plots.__version__` reported `0.2.0` through three releases; it now matches
   `pyproject.toml`.
 

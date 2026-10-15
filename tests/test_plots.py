@@ -163,3 +163,17 @@ def test_curve_stats_rejects_unknown_loc():
     import pytest
     with pytest.raises(ValueError, match="loc must be one of"):
         curve_stats(plt.subplots()[1], [], loc="middle")
+
+
+def test_annotation_placement_respects_limits_set_before_drawing():
+    """A flat curve on a shared-y grid sits in the top band of its panel. Scoring it as
+    if it filled the axis called every corner crowded and dropped the block onto a
+    data point; against the real limits the bottom corners are visibly empty."""
+    f = _dead_fit()
+    x, _ = _real_curve()
+    y = np.full_like(x, 12000.0) + np.random.default_rng(0).normal(0, 150, x.size)
+    _, ax = plt.subplots()
+    ax.set_ylim(0, 14000)                # what sharey / headroom would impose
+    dose_response(ax, x, y, f)
+    _, ty = ax.texts[-1].get_position()
+    assert ty < 0.5                      # bottom corner, below the flat data
