@@ -1,5 +1,7 @@
 """Tests for the dose-response plot — specifically the annotation block, which is the
 only part of the figure a reader takes numbers off."""
+import itertools
+
 import matplotlib
 import numpy as np
 
@@ -78,3 +80,86 @@ def test_annotation_moves_off_a_curve_that_turns_early():
         anchors[ec50] = ax.texts[-1].get_position()
     assert anchors[0.05] == (0.97, 0.97)   # bottom-left is full, so top-right
     assert anchors[50.0] == (0.03, 0.03)   # conventional corner, and it is clear
+
+
+# ── fit_stats / curve_stats ───────────────────────────────────────────────────
+
+from capable_plots.assay import curve_stats, fit_stats
+
+
+def _dead_fit():
+    """A flat row: the standard has to call it NE, and the figure has to say so."""
+    x, _ = _real_curve()
+    y = np.full_like(x, 12000.0) + np.random.default_rng(0).normal(0, 150, x.size)
+    return curves.fit_4pl(x, y, direction="descending", ns_mean=12000.0)
+
+
+def test_block_and_lines_print_identical_numbers():
+    """One formatter feeds both the corner block and the stacked lines, so a figure
+    that uses both can never show two versions of the same fit."""
+    x, y, f = _fit(ref_top=1000.0)
+    _, ax = plt.subplots()
+    dose_response(ax, x, y, f)
+    block = _annotation(ax)
+    _, ax2 = plt.subplots()
+    (line,) = curve_stats(ax2, [("cmpd", f)])
+    for _, piece in fit_stats(f):
+        assert piece in block and piece in line.get_text()
+
+
+def test_curve_stats_one_line_per_curve_carrying_every_field():
+    fits = [(name, _fit(ec50=e, ref_top=1000.0)[2])
+            for name, e in (("a", 5.0), ("b", 50.0), ("c", 500.0))]
+    _, ax = plt.subplots()
+    texts = curve_stats(ax, fits)
+    assert [t.get_text().split("  ·  ")[0] for t in texts] == ["a", "b", "c"]
+    for t in texts:
+        s = t.get_text()
+        assert all(k in s for k in ("EC$_{50}$", "E$_{max}$", "R$^2$", "n$_H$"))
+        assert "nan" not in s
+
+
+def test_curve_stats_lines_take_their_curve_colour():
+    f = _fit()[2]
+    _, ax = plt.subplots()
+    texts = curve_stats(ax, [("a", f, "#d62728"), ("b", f, "#1f77b4")])
+    assert [t.get_color() for t in texts] == ["#d62728", "#1f77b4"]
+
+
+def test_curve_stats_lines_do_not_overlap_when_rendered():
+    """The stack is spaced in points; mathtext subscripts make each line taller than
+    its point size, which is what a fraction-of-axes spacing got wrong."""
+    fits = [(f"compound {k}", _fit(ec50=10.0 ** k, ref_top=1000.0)[2]) for k in range(4)]
+    fig, ax = plt.subplots(figsize=(4, 3))
+    texts = curve_stats(ax, fits)
+    fig.canvas.draw()
+    boxes = [t.get_window_extent() for t in texts]
+    for a, b in itertools.pairwise(boxes):
+        assert a.y0 >= b.y1, "adjacent stats lines overlap"
+
+
+def test_dead_curve_says_NE_in_both_places_and_never_nan():
+    """A dead compound stays on the figure (standard v1.1) — labelled, not blank."""
+    f = _dead_fit()
+    assert f.status in ("NE", "fit failed")
+    pieces = [t for _, t in fit_stats(f)]
+    assert pieces[0] == "NE"
+    assert not any("E$_{max}$" in p or "n$_H$" in p for p in pieces)
+    _, ax = plt.subplots()
+    (line,) = curve_stats(ax, [("dead", f)])
+    assert "NE" in line.get_text() and "nan" not in line.get_text()
+
+
+def test_curve_stats_lower_loc_stacks_upward():
+    f = _fit()[2]
+    fig, ax = plt.subplots()
+    texts = curve_stats(ax, [("a", f), ("b", f)], loc="lower right")
+    fig.canvas.draw()
+    a, b = (t.get_window_extent() for t in texts)
+    assert b.y0 >= a.y1                  # second line sits above the first
+
+
+def test_curve_stats_rejects_unknown_loc():
+    import pytest
+    with pytest.raises(ValueError, match="loc must be one of"):
+        curve_stats(plt.subplots()[1], [], loc="middle")
