@@ -3,6 +3,46 @@
 All notable changes to `capable-plots` are documented here. This project follows
 [semantic versioning](https://semver.org/).
 
+## [0.5.0] — unreleased
+
+### Added
+- **House annotation convention: every dose-response figure shows EC50, Emax, R2 and
+  nH.** Potency and efficacy alone let a reader take a number off a curve without any
+  way to judge whether the shape behind it is real; R2 and the Hill slope are that
+  judgement. `ANNOTATION_FIELDS = ("EC50", "Emax", "R2", "nH")` is the default
+  everywhere and is now exported.
+- **`dose_response` carries R2 and nH and picks a free corner** (#5, logged here
+  retroactively). Two-line block — `EC50 · Emax` above, `R2 · nH` below — placed in
+  whichever corner the curve does not run through, scored against both the points and
+  the fitted curve, so a curve that turns early no longer prints its numbers on top of
+  its own data.
+- **`curve_stats(ax, entries)`** — the same numbers for a panel carrying several
+  curves. `dose_response` has four corners and so cannot annotate four curves on one
+  axis; `curve_stats` stacks one `label · EC50 · Emax · R2 · nH` line per curve,
+  coloured to match it. Spaced in points rather than axes fractions so the stack
+  keeps its spacing on a short panel (mathtext subscripts need ~1.75x the font size).
+  `loc=` takes the four corners; lower corners stack upward. Lifted out of the CHO-APLNR
+  Run 1 analysis, where it was hand-rolled per script.
+- **`fit_stats(fit, fields)`** — the single formatter behind both, returning
+  `(field, text)` pairs. A figure that uses the corner block and the stacked lines
+  cannot show two versions of the same fit.
+
+### Changed — behaviour
+- **A dead curve is labelled `NE`.** When the standard calls a fit `NE` or it fails to
+  converge, the annotation prints `NE` where the EC50 was, rather than silently
+  omitting the EC50 and leaving an R2 floating on its own. Emax and nH are dropped on a
+  dead curve — they describe a transition that is not there. R2 stays: it is the
+  evidence for the call. Live fits are unaffected.
+
+### Fixed
+- **The corner block no longer lands on a flat curve in a `sharey` grid.** Placement
+  scored corners as if the curve filled its own axis; on a panel whose y-limits were
+  fixed first, a flat (often NE) curve sits in one band, every corner read as crowded,
+  and the block fell back onto a data point. It now maps points through the axes'
+  real limits. Set limits before calling `dose_response` for the block to see them.
+- `capable_plots.__version__` reported `0.2.0` through three releases; it now matches
+  `pyproject.toml`.
+
 ## [0.4.0] — unreleased
 
 ### Added

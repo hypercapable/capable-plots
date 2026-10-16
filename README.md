@@ -96,8 +96,19 @@ from capable_plots.assay import curves, plots
 
 fit = curves.fit_4pl(x, y, direction="descending",   # or "ascending"
                      ns_mean=ns, ref_top=ref_top)
-plots.dose_response(ax, x, y, fit)                    # log axis + EC50/Emax annotation
+plots.dose_response(ax, x, y, fit)       # log axis + EC50 · Emax / R2 · nH block
+
+# several curves on one panel: draw them bare, then one stats line per curve
+for name, (x, y, fit), c in zip(names, series, colors):
+    plots.dose_response(ax, x, y, fit, label=name, color=c, annotate=False)
+plots.curve_stats(ax, [(n, s[2], c) for n, s, c in zip(names, series, colors)])
 ```
+
+**House convention: every dose-response figure shows EC50, Emax, R2 and nH** — the
+potency and efficacy a reader takes off the curve, plus the two numbers that say
+whether its shape is real. `dose_response` puts them in a free corner for one curve;
+`curve_stats` stacks one line per curve when a panel carries several. Both print
+through the same formatter, `fit_stats`, and a dead curve reads `NE`, never `nan`.
 
 One canonical 4PL fitter for every modality. Whether the signal rises or falls
 with dose is a single explicit `direction=` argument — not three diverging copies.

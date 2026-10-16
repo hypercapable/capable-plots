@@ -20,23 +20,99 @@ from .curves import FitResult, four_pl
 ANNOTATION_FIELDS = ("EC50", "Emax", "R2", "nH")
 
 
-def _annotation(fit: FitResult, fields) -> str:
-    """Two-line annotation: potency and efficacy above, fit quality below.
+#: Fit-quality fields, printed on the second line of the corner block.
+_QUALITY = frozenset({"R2", "nH"})
 
-    Fields with no value on this fit are dropped rather than printed as ``nan`` — a
-    flat curve legitimately has no EC50 and an unreferenced one has no Emax.
+
+def _is_dead(fit: FitResult) -> bool:
+    """No reportable potency: the standard called it NE, or the fit never converged."""
+    return fit.status in ("NE", "fit failed") or not np.isfinite(fit.EC50_nM)
+
+
+def fit_stats(fit: FitResult, fields=ANNOTATION_FIELDS) -> list[tuple[str, str]]:
+    """The house fit-statistics text, as ``(field, text)`` pairs in ``fields`` order.
+
+    The single source for how a fit's numbers are printed, shared by the
+    one-curve corner block (:func:`dose_response`) and the multi-curve lines
+    (:func:`curve_stats`) so the two can never drift apart.
+
+    Fields with no value on this fit are dropped rather than printed as ``nan`` — an
+    unreferenced fit has no Emax. A dead curve (status ``NE`` or ``fit failed``)
+    prints ``NE`` in place of its EC50 and drops Emax and nH, which describe a
+    transition that is not there; R2 stays, because it is the evidence for the call.
     """
-    top, bottom = [], []
+    dead = _is_dead(fit)
+    out = []
     for f in fields:
-        if f == "EC50" and np.isfinite(fit.EC50_nM):
-            top.append(f"EC$_{{50}}$ {fit.EC50_nM:.3g} nM")
-        elif f == "Emax" and fit.Emax_pct is not None:
-            top.append(f"E$_{{max}}$ {fit.Emax_pct:.0f}%")
+        if f == "EC50":
+            out.append((f, "NE" if dead else f"EC$_{{50}}$ {fit.EC50_nM:.3g} nM"))
+        elif f == "Emax" and not dead and fit.Emax_pct is not None \
+                and np.isfinite(fit.Emax_pct):
+            out.append((f, f"E$_{{max}}$ {fit.Emax_pct:.0f}%"))
         elif f == "R2" and np.isfinite(fit.R2):
-            bottom.append(f"R$^2$ {fit.R2:.3f}")
-        elif f == "nH" and np.isfinite(fit.Hill):
-            bottom.append(f"n$_H$ {fit.Hill:.2f}")
+            out.append((f, f"R$^2$ {fit.R2:.3f}"))
+        elif f == "nH" and not dead and np.isfinite(fit.Hill):
+            out.append((f, f"n$_H$ {fit.Hill:.2f}"))
+    return out
+
+
+def _annotation(fit: FitResult, fields) -> str:
+    """Two-line annotation: potency and efficacy above, fit quality below."""
+    stats = fit_stats(fit, fields)
+    top = [t for f, t in stats if f not in _QUALITY]
+    bottom = [t for f, t in stats if f in _QUALITY]
     return "\n".join(" · ".join(part) for part in (top, bottom) if part)
+
+
+#: ``loc`` -> (x, y, ha, va, stacking sign) for :func:`curve_stats`.
+_STATS_LOC = {
+    "upper left":  (0.025, 0.975, "left", "top", -1),
+    "upper right": (0.975, 0.975, "right", "top", -1),
+    "lower left":  (0.025, 0.025, "left", "bottom", +1),
+    "lower right": (0.975, 0.025, "right", "bottom", +1),
+}
+
+
+def curve_stats(
+    ax: Axes,
+    entries,
+    *,
+    fields=ANNOTATION_FIELDS,
+    loc: str = "upper left",
+    fontsize: float = 8.0,
+    line_spacing: float = 1.75,
+    sep: str = "  ·  ",
+) -> list:
+    """One line of fit statistics per curve, for a panel that carries several.
+
+    :func:`dose_response` puts its block in whichever corner the curve leaves free,
+    and there are only four corners, so it cannot annotate four curves on one axis.
+    This stacks one line per curve instead — ``label · EC50 · Emax · R2 · nH`` —
+    coloured to match its curve, so the numbers are read off the figure without a
+    separate table. Draw the curves with ``dose_response(..., annotate=False)``.
+
+    ``entries`` is an iterable of ``(label, fit)`` or ``(label, fit, color)``.
+
+    Lines are spaced in points, not axes fractions, so the stack keeps its spacing on
+    a short panel; the mathtext subscripts need roughly 1.75x the font size. Nothing
+    here moves the data: leave headroom with ``ax.set_ylim`` so the stack does not
+    sit on a curve. Returns the text artists, top line first.
+    """
+    try:
+        x0, y0, ha, va, sign = _STATS_LOC[loc]
+    except KeyError:
+        raise ValueError(f"loc must be one of {sorted(_STATS_LOC)}, got {loc!r}") from None
+    step = fontsize * line_spacing
+    texts = []
+    for k, entry in enumerate(entries):
+        label, fit, *rest = entry
+        color = rest[0] if rest else None
+        line = sep.join([str(label)] + [t for _, t in fit_stats(fit, fields)])
+        texts.append(ax.annotate(
+            line, xy=(x0, y0), xycoords="axes fraction",
+            xytext=(0, sign * k * step), textcoords="offset points",
+            ha=ha, va=va, fontsize=fontsize, color=color))
+    return texts
 
 
 #: Candidate annotation anchors, in preference order, as
@@ -59,17 +135,22 @@ def _place(ax, x, y, fit, n_lines: int):
     collides whenever the curve turns early. Scores each candidate by how many
     plotted points and fitted-curve samples fall inside the text's footprint and
     takes the first clear one, falling back to the least-crowded.
+
+    Points are mapped through the axes' **actual** limits, not the curve's own
+    range. A panel whose y-limits are fixed before drawing — a ``sharey`` grid, or
+    headroom left for stats lines — puts a flat curve in one band of the axis, and
+    scoring it as if it filled the axis would call every corner crowded. Set limits
+    *before* calling :func:`dose_response` for the block to see them.
     """
     xs = np.log10(x[x > 0])
     curve_x = np.logspace(xs.min(), xs.max(), 60)
     px = np.concatenate([xs, np.log10(curve_x)])
     py = np.concatenate([y, four_pl(curve_x, *fit.params)])
-    span_x, span_y = np.ptp(px), np.ptp(py)
-    if span_x <= 0 or span_y <= 0 or not np.isfinite(py).all():
+    (x0, x1), (y0, y1) = ax.get_xlim(), ax.get_ylim()
+    if not np.isfinite(py).all() or x0 <= 0 or x1 <= x0 or y1 <= y0:
         return _ANCHORS[0]
-    # matplotlib's default 5% margins, so data spans 0.05-0.95 of the axis
-    fx = 0.05 + 0.90 * (px - px.min()) / span_x
-    fy = 0.05 + 0.90 * (py - py.min()) / span_y
+    fx = (px - np.log10(x0)) / (np.log10(x1) - np.log10(x0))
+    fy = (py - y0) / (y1 - y0)
 
     h = _BLOCK_H * n_lines / 2
     counts = []
