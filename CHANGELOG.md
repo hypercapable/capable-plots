@@ -3,6 +3,28 @@
 All notable changes to `capable-plots` are documented here. This project follows
 [semantic versioning](https://semver.org/).
 
+## [0.6.0] — unreleased
+
+### Changed — behaviour
+
+- **Capable curve-fitting standard v1.2: Di's policies adopted (2026-10-22).** The fitter
+  was always hers — same model, median scaling, t-based unclamped CI and gates 1–7 — and
+  every one of her runs re-fitted with `fit_4pl` agreed to r(log) = 1.0000. The four
+  Capable policies layered on top are gone:
+  - **`DEFAULT_HILL_BOUNDS` is now `(0.1, 5.0)`**, her `method_core.py` bounds, from
+    `(0.5, 2.0)`. The Hill value is reported, not hidden behind `provisional`; a dead
+    curve that runs to a bound still fails `Hill at bound` and gate 1. On Run 14 this
+    makes the two shallow Natives (nH 0.43 / 0.44) supported, as in her analysis.
+  - No pre-fit well mask. The donor-channel check is a flag and a sensitivity re-fit
+    (`calcium_assay/scripts/di_ip1_package.py`), never an exclusion.
+  - Anchor failure withholds the same-plate **fold**, not the compound's EC50. The
+    `reference_ok=False` gate-9 path is retained for callers that still want it, but
+    the house pipelines no longer pass it.
+  - `provisional` is a label derived from the reason list, not a separate analysis.
+  `FitResult.fitter_version` now reads `capable-standard-v1.2`. Numbers from v1.1 rows
+  are unchanged by this (identical fitter); labels can differ on Hill-bound and gate-9
+  cases only.
+
 ## [0.5.0] — unreleased
 
 ### Added

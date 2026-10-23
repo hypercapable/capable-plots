@@ -162,7 +162,7 @@ def test_asymptotes_named_by_dose_position_not_height():
 
 
 def test_hill_at_bound_is_a_gate_failure():
-    x, y = _real_curve(hill=6.0)               # far above the 2.0 cap
+    x, y = _real_curve(hill=6.0)               # above the 5.0 cap (v1.2)
     f = curves.fit_4pl(x, y, direction="descending", ns_mean=12000.0)
     assert "Hill at bound" in f.gates_failed
     assert f.status != "supported"
@@ -191,6 +191,7 @@ def test_wrong_direction_response_fails_first_gate():
 
 
 def test_default_hill_bounds_are_the_standard():
-    assert curves.DEFAULT_HILL_BOUNDS == (0.5, 2.0)
+    # v1.2 §12: Di's method_core.py bounds, adopted 2026-10-22 (v1.1 was 0.5–2.0)
+    assert curves.DEFAULT_HILL_BOUNDS == (0.1, 5.0)
     assert curves.DEFAULT_GATES["min_r2"] == 0.80
     assert curves.DEFAULT_GATES["max_ci_fold"] == 10.0
