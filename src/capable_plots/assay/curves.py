@@ -35,10 +35,11 @@ from scipy.stats import t as _tdist
 
 Direction = str  # "ascending" | "descending"
 
-#: Hill bounds per standard v1.1 §2.1. Empirically grounded: across both Run 8
-#: analyses no reportable curve had a Hill outside 0.87-1.45, while loose bounds
-#: (0.1-8) let 17/80 dead curves run to the ceiling and report a potency.
-DEFAULT_HILL_BOUNDS = (0.5, 2.0)
+#: Hill bounds per standard v1.2 §12 (2026-10-22): Di's ``method_core.py`` bounds. The
+#: value is reported, not hidden behind a label — a 0.43 Native (Run 14 R08/R09) is
+#: information. A dead curve that runs to a bound still fails ``parameter at bound`` and
+#: gate 1, so the wide window does not let it report a potency. v1.1 used (0.5, 2.0).
+DEFAULT_HILL_BOUNDS = (0.1, 5.0)
 
 #: Acceptance gate thresholds, standard v1.1 §5.
 DEFAULT_GATES = {
@@ -88,7 +89,7 @@ class FitResult:
     #: Asymptote errors are in raw response units; log10EC50 is in log10 nM.
     param_se: tuple[float, float, float, float] = (float("nan"),) * 4
     direction: str = ""
-    fitter_version: str = field(default="capable-standard-v1.1")
+    fitter_version: str = field(default="capable-standard-v1.2")
 
     # ── legacy aliases; read backwards on a descending curve, do not use in output ──
     @property
